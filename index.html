@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FootStep AI - MediaPipe Real-Time Step Tracker</title>
+  <meta name="description" content="Real-time foot step counter and gait analysis application powered by MediaPipe Pose detection. Works with live webcam or uploaded video files.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-shoe-prints"></i>
+        </div>
+        <div class="brand-text">
+          <h1>FootStep <span class="highlight">AI</span></h1>
+          <p class="subtitle">MediaPipe Pose Gait & Step Counter</p>
+        </div>
+      </div>
+      
+      <!-- Source Toggle Tabs -->
+      <div class="tab-controls">
+        <button class="tab-btn active" id="tab-video" data-tab="video">
+          <i class="fa-solid fa-file-video"></i> Video File
+        </button>
+        <button class="tab-btn" id="tab-webcam" data-tab="webcam">
+          <i class="fa-solid fa-camera"></i> Live Webcam
+        </button>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-export-csv" class="btn btn-secondary">
+          <i class="fa-solid fa-download"></i> Export CSV
+        </button>
+        <button id="btn-reset" class="btn btn-ghost" title="Reset Statistics">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Left Panel: Video Feed & Overlays -->
+      <section class="viewport-card">
+        <!-- Viewport Container -->
+        <div class="viewport-wrapper" id="viewport-wrapper">
+          <video id="video-element" playsinline muted style="display:none;"></video>
+          <canvas id="skeleton-canvas"></canvas>
+
+          <!-- Video Completion Modal Overlay -->
+          <div class="completion-overlay" id="completion-overlay" style="display: none;">
+            <div class="completion-card">
+              <div class="completion-icon">
+                <i class="fa-solid fa-flag-checkered"></i>
+              </div>
+              <h2>Video Completed!</h2>
+              <p>Total Steps Tracked: <span id="completion-steps-num">0</span></p>
+              <div class="completion-actions">
+                <button class="btn btn-primary" id="btn-replay-video">
+                  <i class="fa-solid fa-rotate-right"></i> Replay Video
+                </button>
+                <button class="btn btn-secondary" id="btn-change-video">
+                  <i class="fa-solid fa-folder-open"></i> Select Another Video
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Dropzone for Video Mode -->
+          <div class="dropzone" id="file-dropzone">
+            <div class="dropzone-content">
+              <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+              <h3>Upload Walk or Run Video</h3>
+              <p>Drag & drop MP4, WEBM, MOV video file here, or click to browse</p>
+              <button class="btn btn-primary" id="btn-browse-file">
+                <i class="fa-solid fa-folder-open"></i> Choose File
+              </button>
+              <input type="file" id="file-input" accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo" hidden>
+            </div>
+          </div>
+
+          <!-- Status Overlay Badge -->
+          <div class="viewport-badge" id="viewport-badge">
+            <span class="status-dot"></span>
+            <span id="status-text">Ready</span>
+          </div>
+
+          <!-- Motion State Indicator -->
+          <div class="motion-state-badge" id="motion-state-badge">
+            NEUTRAL
+          </div>
+
+          <!-- Video Controls Overlay Bar -->
+          <div class="video-control-bar" id="video-control-bar">
+            <button class="ctrl-btn" id="btn-play-pause" title="Play/Pause">
+              <i class="fa-solid fa-play"></i>
+            </button>
+            <div class="timeline-container">
+              <input type="range" id="timeline-slider" min="0" max="100" value="0" step="0.1">
+              <span id="time-display">00:00 / 00:00</span>
+            </div>
+            <button class="ctrl-btn" id="btn-open-dropzone" title="Upload / Change Video File">
+              <i class="fa-solid fa-folder-open"></i>
+            </button>
+            <button class="ctrl-btn" id="btn-audio-toggle" title="Toggle Audio Feedback Beep">
+              <i class="fa-solid fa-volume-high"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Webcam Controls Sub-bar -->
+        <div class="webcam-controls-bar" id="webcam-controls-bar" style="display: none;">
+          <div class="select-wrapper">
+            <i class="fa-solid fa-video"></i>
+            <select id="camera-select">
+              <option value="">Select Camera...</option>
+            </select>
+          </div>
+          <button class="btn btn-emerald" id="btn-toggle-webcam">
+            <i class="fa-solid fa-power-off"></i> Start Webcam
+          </button>
+        </div>
+
+        <!-- Settings & Toggles Bar -->
+        <div class="settings-panel">
+          <div class="setting-group">
+            <label class="setting-title"><i class="fa-solid fa-sliders"></i> Detection Sensitivity</label>
+            <div class="slider-row">
+              <input type="range" id="sensitivity-slider" min="0.05" max="0.35" step="0.01" value="0.15">
+              <span class="value-val" id="sensitivity-val">0.15</span>
+            </div>
+          </div>
+
+          <div class="setting-group">
+            <label class="setting-title"><i class="fa-solid fa-clock-rotate-left"></i> Cooldown Window</label>
+            <div class="slider-row">
+              <input type="range" id="cooldown-slider" min="0.15" max="0.60" step="0.05" value="0.25">
+              <span class="value-val" id="cooldown-val">0.25s</span>
+            </div>
+          </div>
+
+          <div class="toggles-row">
+            <label class="toggle-chip active">
+              <input type="checkbox" id="chk-skeleton" checked hidden>
+              <i class="fa-solid fa-bone"></i> Skeleton Overlay
+            </label>
+            <label class="toggle-chip active">
+              <input type="checkbox" id="chk-angles" checked hidden>
+              <i class="fa-solid fa-compass"></i> Knee Angles
+            </label>
+            <label class="toggle-chip active">
+              <input type="checkbox" id="chk-alert" checked hidden>
+              <i class="fa-solid fa-bell"></i> Step Pulse
+            </label>
+            <label class="toggle-chip">
+              <input type="checkbox" id="chk-loop" hidden>
+              <i class="fa-solid fa-repeat"></i> Auto Loop
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Analytics & Stats -->
+      <section class="analytics-card">
+        <!-- Top Stats Row -->
+        <div class="stats-grid">
+          <!-- Total Steps Metric -->
+          <div class="metric-card primary">
+            <div class="metric-header">
+              <span class="metric-label">TOTAL STEPS</span>
+              <i class="fa-solid fa-shoe-prints metric-icon"></i>
+            </div>
+            <div class="metric-value" id="val-total-steps">0</div>
+            <div class="metric-footer">
+              <span>Overall Stride Count</span>
+            </div>
+          </div>
+
+          <!-- Cadence SPM Metric -->
+          <div class="metric-card cyan">
+            <div class="metric-header">
+              <span class="metric-label">CADENCE (SPM)</span>
+              <i class="fa-solid fa-gauge-high metric-icon"></i>
+            </div>
+            <div class="metric-value" id="val-cadence">0.0</div>
+            <div class="metric-footer">
+              <span>Steps / Minute</span>
+            </div>
+          </div>
+
+          <!-- Left Leg Steps -->
+          <div class="metric-card left-leg">
+            <div class="metric-header">
+              <span class="metric-label">LEFT FOOT</span>
+              <i class="fa-solid fa-left-long metric-icon"></i>
+            </div>
+            <div class="metric-value" id="val-left-steps">0</div>
+            <div class="metric-footer">
+              <span id="val-left-pct">0% distribution</span>
+            </div>
+          </div>
+
+          <!-- Right Leg Steps -->
+          <div class="metric-card right-leg">
+            <div class="metric-header">
+              <span class="metric-label">RIGHT FOOT</span>
+              <i class="fa-solid fa-right-long metric-icon"></i>
+            </div>
+            <div class="metric-value" id="val-right-steps">0</div>
+            <div class="metric-footer">
+              <span id="val-right-pct">0% distribution</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leg Distribution Balance Progress Bar -->
+        <div class="balance-card">
+          <div class="balance-header">
+            <span>Left Foot vs Right Foot Balance</span>
+            <span id="balance-text">50% / 50%</span>
+          </div>
+          <div class="balance-bar-bg">
+            <div class="balance-bar-left" id="balance-bar-left" style="width: 50%;"></div>
+            <div class="balance-bar-right" id="balance-bar-right" style="width: 50%;"></div>
+          </div>
+        </div>
+
+        <!-- Live Signal Graph (Chart.js) -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3><i class="fa-solid fa-chart-line"></i> Real-time Stride Signal & Angles</h3>
+            <span class="live-tag"><i class="fa-solid fa-circle"></i> LIVE</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="stride-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Step Log Table -->
+        <div class="log-card">
+          <div class="log-header">
+            <h3><i class="fa-solid fa-list-check"></i> Step Log</h3>
+            <span class="log-count" id="log-count-badge">0 events</span>
+          </div>
+          <div class="table-wrapper">
+            <table class="step-table">
+              <thead>
+                <tr>
+                  <th>Step #</th>
+                  <th>Timestamp</th>
+                  <th>Foot</th>
+                  <th>Knee Angle</th>
+                  <th>Cadence</th>
+                </tr>
+              </thead>
+              <tbody id="step-log-tbody">
+                <tr class="empty-row">
+                  <td colspan="5">No steps recorded yet. Start video or webcam.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MediaPipe Tasks Vision SDK (ES Module Loader inside app.js or step_detector.js) -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>

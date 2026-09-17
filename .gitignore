@@ -1,0 +1,27 @@
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Video outputs & temporary test files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.csv
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
